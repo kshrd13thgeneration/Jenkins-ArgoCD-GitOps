@@ -75,7 +75,7 @@ pipeline {
 
         stage('Update Deployment Manifest & Push to GitHub') {
             steps {
-                withCredentials([string(credentialsId: 'GIT_TOKEN', variable: 'GIT_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: 'github-jenkins-token', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
                     script {
                         echo "✏️ Updating deployment manifest with image tag: ${IMAGE_TAG}"
 
@@ -86,7 +86,7 @@ pipeline {
                             git config user.name "kshrd13thgeneration"
                             git add ${DEPLOYMENT_FILE}
                             git commit -m "🔧 Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
-                            git remote set-url origin https://${GIT_TOKEN}@github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git
+                            git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git
                             git push origin main
                         """
                     }
