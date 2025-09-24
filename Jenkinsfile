@@ -73,27 +73,6 @@ pipeline {
             }
         }
 
-        stage('Update Deployment Manifest & Push to GitHub') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'github-jenkins-token', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
-                    script {
-                        sh """
-                            export GIT_USERNAME=${GIT_USERNAME}
-                            export GIT_PASSWORD=${GIT_PASSWORD}
-                            sed -i 's|image: ${DOCKER_HUB_REPO}:.*|image: ${DOCKER_HUB_REPO}:${IMAGE_TAG}|' ${DEPLOYMENT_FILE}
-                
-                            git config user.email "hengenghour5@gmail.com"
-                            git config user.name "kshrd13thgeneration"
-                            git add ${DEPLOYMENT_FILE}
-                            git commit -m "🔧 Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
-                            git remote set-url origin https://\$GIT_USERNAME:\$GIT_PASSWORD@github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git
-                            git push origin main
-                        """
-                    }
-                }
-            }
-        }
-
         stage('Sync ArgoCD Application') {
             steps {
                 kubeconfig(
