@@ -5,7 +5,7 @@ pipeline {
   environment {
     DOCKER_HUB_REPO           = 'keanghor31/keanghor-app'
     DOCKER_HUB_CREDENTIALS_ID = 'docker-hub-credentials'
-    GIT_CREDENTIALS_ID        = 'github-jenkins-token'
+    GIT_CREDENTIALS_ID        = 'github-jenkins-token'   // MUST have write access
     BASE_VERSION              = '1.0'
     IMAGE_FILE                = 'manifests/deployment.yaml'   // file to update
     GIT_BRANCH                = 'main'
@@ -28,7 +28,9 @@ pipeline {
       }
     }
 
-    stage('Install Node Dependencies') { steps { sh 'npm install' } }
+    stage('Install Node Dependencies') {
+      steps { sh 'npm install' }
+    }
 
     stage('Build & Push Image') {
       steps {
@@ -47,33 +49,62 @@ pipeline {
       }
     }
 
+    stage('Trivy Scan') {
+      steps {
+        script {
+          echo "🔍 Running Trivy scan..."
+          sh '''
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
+              --severity HIGH,CRITICAL --no-progress --format table \
+              -o trivy-scan-report.txt "$DOCKER_HUB_REPO:$IMAGE_TAG" || echo "Trivy scan failed but continuing..."
+          '''
+        }
+      }
+    }
+
     stage('Bump manifest image tag') {
       steps {
         script {
-          echo "📝 Updating ${IMAGE_FILE} to use tag: ${IMAGE_TAG}"
-          sh """
+          echo "📝 Updating $IMAGE_FILE to use tag: $IMAGE_TAG"
+          sh '''
             set -e
-            grep -n 'image:' ${IMAGE_FILE} || true
-            sed -i -E "s|(image:\\s*${DOCKER_HUB_REPO}:).*|\\1${IMAGE_TAG}|" ${IMAGE_FILE}
-            echo '--- Updated image line(s):'
-            grep -n 'image:' ${IMAGE_FILE} || true
-          """
+            echo "--- Before:"
+            grep -n 'image:' "$IMAGE_FILE" || true
+
+            # Replace only the tag for the target image
+            sed -i -E "s|(image:\\s*$DOCKER_HUB_REPO:).*|\\1$IMAGE_TAG|" "$IMAGE_FILE"
+
+            echo "--- After:"
+            grep -n 'image:' "$IMAGE_FILE" || true
+          '''
         }
       }
     }
 
     stage('Commit & Push manifest change') {
       steps {
-        withCredentials([usernamePassword(credentialsId: "${GIT_CREDENTIALS_ID}", usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-          sh """
+        withCredentials([usernamePassword(
+          credentialsId: "${GIT_CREDENTIALS_ID}",
+          usernameVariable: 'GIT_USER',
+          passwordVariable: 'GIT_TOKEN'
+        )]) {
+          // NOTE: single-quoted Groovy string => no Groovy interpolation of secrets.
+          // The token is supplied via a temporary credential helper (not visible on cmdline).
+          sh '''
             set -e
-            git config user.name  "${GIT_USER_NAME}"
-            git config user.email "${GIT_USER_EMAIL}"
-            git add ${IMAGE_FILE}
-            git commit -m "ci: deploy ${DOCKER_HUB_REPO}:${IMAGE_TAG}"
-            # Push via https with credentials
-            git push https://${GIT_USER}:${GIT_PASS}@${GIT_URL.replace('https://','')} ${GIT_BRANCH}
-          """
+            git config user.name  "$GIT_USER_NAME"
+            git config user.email "$GIT_USER_EMAIL"
+
+            git add "$IMAGE_FILE"
+            git diff --staged || true
+
+            # Commit may be a no-op if image already matches
+            git commit -m "ci: deploy $DOCKER_HUB_REPO:$IMAGE_TAG" || echo "Nothing to commit"
+
+            # Push securely using a throwaway credential helper (no token in URL or logs)
+            git -c credential.helper='!f() { echo username=$GIT_USER; echo password=$GIT_TOKEN; }; f' \
+                push https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git HEAD:$GIT_BRANCH
+          '''
         }
       }
     }
