@@ -6,6 +6,7 @@ pipeline {
 	environment {
 		DOCKER_HUB_REPO = 'keanghor31/keanghor-app'
 		DOCKER_HUB_CREDENTIALS_ID = 'docker-hub-credentials'
+		BASE_VERSION = '1.0'  // base version, you can change it
 	}
 	stages {
 		stage('Test Node') {
@@ -28,33 +29,33 @@ pipeline {
 		stage('Build Docker Image'){
 			steps {
 				script {
-					echo 'building docker image...'
-					dockerImage = docker.build("${DOCKER_HUB_REPO}:latest")
+					// Use Jenkins build number for patch version
+					def imageTag = "${BASE_VERSION}.${env.BUILD_NUMBER}"
+					echo "Building docker image with tag: ${imageTag}"
+					
+					dockerImage = docker.build("${DOCKER_HUB_REPO}:${imageTag}")
+					
+					// Save tag to env var for later stages
+					env.IMAGE_TAG = imageTag
 				}
 			}
 		}
-		// stage('Trivy Scan'){
+		// Trivy scan stage here if needed
+		// stage('Push Image to DockerHub'){
 		// 	steps {
-		// 		//sh 'trivy --severity HIGH,CRITICAL --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:latest'
-		// 		sh 'trivy --severity HIGH,CRITICAL --skip-update --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:latest'
+		// 		script {
+		// 			echo "Pushing docker image ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} to DockerHub..."
+		// 			docker.withRegistry('https://registry.hub.docker.com', "${DOCKER_HUB_CREDENTIALS_ID}"){
+		// 				dockerImage.push(env.IMAGE_TAG)
+		// 			}
+		// 		}
 		// 	}
 		// }
-		stage('Push Image to DockerHub'){
-			steps {
-				script {
-					echo 'pushing docker image to DockerHub...'
-					docker.withRegistry('https://registry.hub.docker.com', "${DOCKER_HUB_CREDENTIALS_ID}"){
-						dockerImage.push('latest')
-						}
-					}
-				}
-			}
-
 		// stage('Apply Kubernetes Manifests & Sync App with ArgoCD'){
 		// 	steps {
 		// 		script {
 		// 			kubeconfig(credentialsId: 'kubeconfig', serverUrl: '34.87.128.146:8080') {
-  //   						sh '''
+		// 				sh '''
 		// 				argocd login 104.154.141.175 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
 		// 				argocd app sync argocdjenkins
 		// 				'''
