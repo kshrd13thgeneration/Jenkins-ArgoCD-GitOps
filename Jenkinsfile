@@ -12,6 +12,7 @@ pipeline {
         K8S_NAMESPACE = 'argocd'
         ARGOCD_APP_NAME = 'argocdjenkins'
         ARGOCD_SERVER_IP = '104.154.141.175'
+        DEPLOYMENT_FILE = 'manifests/deployment.yaml'
     }
 
     stages {
@@ -24,7 +25,9 @@ pipeline {
 
         stage('Checkout GitHub') {
             steps {
-                git branch: 'main', credentialsId: 'GitOps-Token-GitHub', url: 'https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git'
+                git branch: 'main',
+                    credentialsId: 'GitOps-Token-GitHub',
+                    url: 'https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git'
             }
         }
 
@@ -58,7 +61,7 @@ pipeline {
             }
         }
 
-        stage('Push Image to DockerHub') {
+        stage('Push Docker Image') {
             steps {
                 script {
                     echo "🚀 Pushing Docker image: ${DOCKER_HUB_REPO}:${IMAGE_TAG} and :latest"
@@ -70,25 +73,20 @@ pipeline {
             }
         }
 
-        stage('Update Deployment Manifest') {
+        stage('Update Deployment Manifest & Push to GitHub') {
             steps {
-                script {
-                    echo "✏️ Updating deployment manifest with image tag: ${IMAGE_TAG}"
-                    sh """
-                        sed -i 's|image: ${DOCKER_HUB_REPO}:.*|image: ${DOCKER_HUB_REPO}:${IMAGE_TAG}|' manifests/deployment.yaml
-                    """
+                withCredentials([string(credentialsId: 'GIT_TOKEN', variable: 'GIT_TOKEN')]) {
+                    script {
+                        echo "✏️ Updating deployment manifest with image tag: ${IMAGE_TAG}"
 
-                    withCredentials([usernamePassword(
-                        credentialsId: 'GitOps-Token-GitHub',
-                        usernameVariable: 'GIT_USER',
-                        passwordVariable: 'GIT_TOKEN'
-                    )]) {
                         sh """
+                            sed -i 's|image: ${DOCKER_HUB_REPO}:.*|image: ${DOCKER_HUB_REPO}:${IMAGE_TAG}|' ${DEPLOYMENT_FILE}
+
                             git config user.email "hengenghour5@gmail.com"
                             git config user.name "kshrd13thgeneration"
-                            git add manifests/deployment.yaml
+                            git add ${DEPLOYMENT_FILE}
                             git commit -m "🔧 Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
-                            git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git
+                            git remote set-url origin https://${GIT_TOKEN}@github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git
                             git push origin main
                         """
                     }
@@ -96,19 +94,21 @@ pipeline {
             }
         }
 
-        stage('Login to ArgoCD & Sync App') {
+        stage('Sync ArgoCD Application') {
             steps {
                 kubeconfig(
                     credentialsId: 'gcp-k8s-service-account',
-                    serverUrl: "https://${env.ARGOCD_SERVER_IP}",
+                    serverUrl: "https://${ARGOCD_SERVER_IP}",
                     caCertificate: ''
                 ) {
                     script {
-                        echo "🔐 Logging into ArgoCD and syncing app..."
+                        echo "🔐 Logging into ArgoCD and syncing application..."
                         sh """
-                            argocd login ${ARGOCD_SERVER_IP} --username admin --password \\
-                                \$(kubectl get secret -n ${K8S_NAMESPACE} argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
-                            
+                            argocd login ${ARGOCD_SERVER_IP} \\
+                                --username admin \\
+                                --password \$(kubectl get secret -n ${K8S_NAMESPACE} argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) \\
+                                --insecure
+
                             argocd app sync ${ARGOCD_APP_NAME}
                         """
                     }
