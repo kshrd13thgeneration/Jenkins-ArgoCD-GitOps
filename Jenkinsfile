@@ -1,5 +1,7 @@
 pipeline {
-    agent { label "agent-2" }
+    agent {
+        label "agent-2"
+    }
 
     tools {
         nodejs 'NodeJS'
@@ -16,7 +18,6 @@ pipeline {
     }
 
     stages {
-
         stage('Test Node') {
             steps {
                 sh 'node -v'
@@ -26,8 +27,8 @@ pipeline {
 
         stage('Checkout GitHub') {
             steps {
-                git branch: 'main', 
-                    credentialsId: 'github-jenkins-token', 
+                git branch: 'main',
+                    credentialsId: 'github-jenkins-token',
                     url: 'https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git'
             }
         }
@@ -74,19 +75,6 @@ pipeline {
             }
         }
 
-  //       stage('Install Kubectl & ArgoCD CLI'){
-		// 	steps {
-		// 		sh '''
-		// 		echo 'installing Kubectl & ArgoCD cli...'
-		// 		curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-		// 		chmod +x kubectl
-		// 		mv kubectl /usr/local/bin/kubectl
-		// 		curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-		// 		chmod +x /usr/local/bin/argocd
-		// 		'''
-		// 	}
-		// }
-
         stage('Sync ArgoCD Application') {
             steps {
                 kubeconfig(
@@ -113,4 +101,11 @@ pipeline {
     post {
         success {
             echo '✅ Build & Deploy completed successfully!'
-            archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive
+            archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
+        }
+        failure {
+            echo '❌ Build & Deploy failed. Check logs.'
+            archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
+        }
+    }
+}
