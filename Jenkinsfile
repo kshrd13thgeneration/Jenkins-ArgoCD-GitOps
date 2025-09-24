@@ -8,7 +8,7 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'keanghor31/keanghor-app'
         DOCKER_HUB_CREDENTIALS_ID = 'docker-hub-credentials'
-        BASE_VERSION = '1.0'  // base version, change if needed
+        BASE_VERSION = '1.0'  // Base version for tagging
     }
 
     stages {
@@ -35,10 +35,8 @@ pipeline {
             steps {
                 script {
                     def imageTag = "${BASE_VERSION}.${env.BUILD_NUMBER}"
-                    echo "Building docker image with tag: ${imageTag}"
-
+                    echo "📦 Building Docker image with tag: ${imageTag}"
                     dockerImage = docker.build("${DOCKER_HUB_REPO}:${imageTag}")
-
                     env.IMAGE_TAG = imageTag
                 }
             }
@@ -46,47 +44,52 @@ pipeline {
 
         stage('Trivy Scan') {
             steps {
-                // If trivy CLI is installed on your agent, use this:
-                // sh "trivy image --severity HIGH,CRITICAL --no-progress --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}"
+                // You can use local Trivy CLI or Docker method if CLI not available
+                // sh '''
+                //     trivy image --severity HIGH,CRITICAL \
+                //         --no-progress --format table \
+                //         -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${IMAGE_TAG} || echo "Trivy scan failed but continuing..."
+                // '''
             }
         }
 
         stage('Push Image to DockerHub') {
             steps {
                 script {
-                    echo "Pushing docker image ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} and latest to DockerHub..."
+                    echo "🚀 Pushing Docker image: ${DOCKER_HUB_REPO}:${IMAGE_TAG} and :latest"
                     docker.withRegistry('', "${DOCKER_HUB_CREDENTIALS_ID}") {
-                        dockerImage.push(env.IMAGE_TAG)
+                        dockerImage.push("${IMAGE_TAG}")
                         dockerImage.push('latest')
                     }
                 }
             }
         }
 
-        // Optional Kubernetes/ArgoCD stage here if needed
-        /*
         stage('Apply Kubernetes Manifests & Sync App with ArgoCD') {
             steps {
-                script {
-                    kubeconfig(credentialsId: 'kubeconfig', serverUrl: '34.87.128.146:8080') {
-                        sh '''
-                            argocd login 104.154.141.175 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
-                            argocd app sync argocdjenkins
-                        '''
-                    }
+                withCredentials([file(credentialsId: 'gcp-service-account', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    sh '''
+                        echo "🔐 Authenticating with GCP..."
+                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                        gcloud config set project keanghor
+                        gcloud container clusters get-credentials cluster-1 --zone us-central1-a --project keanghor
+
+                        echo "🔁 Logging into ArgoCD & syncing app..."
+                        argocd login 34.134.61.204 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
+                        argocd app sync argocdjenkins
+                    '''
                 }
             }
         }
-        */
     }
 
     post {
         success {
-            echo 'Build & Deploy completed successfully!'
+            echo '✅ Build & Deploy completed successfully!'
             archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
         }
         failure {
-            echo 'Build & Deploy failed. Check logs.'
+            echo '❌ Build & Deploy failed. Check logs.'
             archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
         }
     }
