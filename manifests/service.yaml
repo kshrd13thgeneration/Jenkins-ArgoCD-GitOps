@@ -5,10 +5,9 @@ metadata:
   labels:
     app: node-app
 spec:
-  type: NodePort
+  type: LoadBalancer   # <--- changed here
   selector:
     app: node-app
   ports:
-  - port: 80
-    targetPort: 3000
-    nodePort: 30080
+  - port: 80           # external port (what the LB will expose)
+    targetPort: 3000   # port inside your Pod
