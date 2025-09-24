@@ -9,6 +9,9 @@ pipeline {
         DOCKER_HUB_REPO = 'keanghor31/keanghor-app'
         DOCKER_HUB_CREDENTIALS_ID = 'docker-hub-credentials'
         BASE_VERSION = '1.0'  // Base version for tagging
+        K8S_NAMESPACE = 'argocd' // namespace where argocd is installed
+        ARGOCD_APP_NAME = 'argocdjenkins' // your argocd app name
+        ARGOCD_SERVER_IP = '104.154.141.175' // fixed ArgoCD LoadBalancer IP
     }
 
     stages {
@@ -44,40 +47,39 @@ pipeline {
 
         stage('Trivy Scan') {
             steps {
-                // You can use local Trivy CLI or Docker method if CLI not available
-                // sh '''
-                //     trivy image --severity HIGH,CRITICAL \
-                //         --no-progress --format table \
-                //         -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${IMAGE_TAG} || echo "Trivy scan failed but continuing..."
-                // '''
+                script {
+                    echo "🔍 Running Trivy scan with Docker container..."
+                    sh """
+                        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \\
+                            --severity HIGH,CRITICAL --no-progress --format table \\
+                            -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} || echo 'Trivy scan failed but continuing...'
+                    """
+                }
             }
         }
 
         stage('Push Image to DockerHub') {
             steps {
                 script {
-                    echo "🚀 Pushing Docker image: ${DOCKER_HUB_REPO}:${IMAGE_TAG} and :latest"
+                    echo "🚀 Pushing Docker image: ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} and :latest"
                     docker.withRegistry('', "${DOCKER_HUB_CREDENTIALS_ID}") {
-                        dockerImage.push("${IMAGE_TAG}")
+                        dockerImage.push("${env.IMAGE_TAG}")
                         dockerImage.push('latest')
                     }
                 }
             }
         }
 
-        stage('Apply Kubernetes Manifests & Sync App with ArgoCD') {
+        stage('Login to ArgoCD & Sync App') {
             steps {
-                withCredentials([file(credentialsId: 'gcp-service-account', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                    sh '''
-                        echo "🔐 Authenticating with GCP..."
-                        gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-                        gcloud config set project keanghor
-                        gcloud container clusters get-credentials cluster-1 --zone us-central1-a --project keanghor
-
-                        echo "🔁 Logging into ArgoCD & syncing app..."
-                        argocd login 34.134.61.204 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
-                        argocd app sync argocdjenkins
-                    '''
+                kubeconfig(credentialsId: 'gcp-k8s-service-account', serverUrl: "https://${env.ARGOCD_SERVER_IP}") {
+                    script {
+                        echo "🔐 Logging into ArgoCD and syncing app..."
+                        sh """
+                        argocd login ${env.ARGOCD_SERVER_IP} --username admin --password \$(kubectl get secret -n ${K8S_NAMESPACE} argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
+                        argocd app sync ${ARGOCD_APP_NAME}
+                        """
+                    }
                 }
             }
         }
