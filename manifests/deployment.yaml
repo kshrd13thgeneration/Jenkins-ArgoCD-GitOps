@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: node-app
-        image: keanghor31/keanghor-app:latest
+        image: keanghor31/keanghor-app:1.0.44
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
