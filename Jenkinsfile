@@ -46,12 +46,18 @@ pipeline {
             }
         }
 
-        // Optional Trivy scan stage
-        // stage('Trivy Scan') {
-        //     steps {
-        //         sh "trivy --severity HIGH,CRITICAL --skip-update --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}"
-        //     }
-        // }
+        stage('Trivy Scan') {
+            steps {
+                script {
+                    echo "Running Trivy vulnerability scan on image: ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}"
+                    sh """
+                        trivy --severity HIGH,CRITICAL --skip-update --no-progress image \
+                        --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}
+                    """
+                }
+                archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
+            }
+        }
 
         stage('Push Image to DockerHub') {
             steps {
@@ -65,19 +71,21 @@ pipeline {
             }
         }
 
-
-        // stage('Apply Kubernetes Manifests & Sync App with ArgoCD') {
-        //     steps {
-        //         script {
-        //             kubeconfig(credentialsId: 'kubeconfig', serverUrl: '34.87.128.146:8080') {
-        //                 sh '''
-        //                     argocd login 104.154.141.175 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
-        //                     argocd app sync argocdjenkins
-        //                 '''
-        //             }
-        //         }
-        //     }
-        // }
+        // Uncomment and update if you want Kubernetes deploy & ArgoCD sync
+        /*
+        stage('Apply Kubernetes Manifests & Sync App with ArgoCD') {
+            steps {
+                script {
+                    kubeconfig(credentialsId: 'kubeconfig', serverUrl: '34.87.128.146:8080') {
+                        sh '''
+                            argocd login 104.154.141.175 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
+                            argocd app sync argocdjenkins
+                        '''
+                    }
+                }
+            }
+        }
+        */
     }
 
     post {
