@@ -52,8 +52,8 @@ pipeline {
                 //     --severity HIGH,CRITICAL --no-progress --format table \
                 //     -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}
                 // """
-                //sh 'trivy --severity HIGH,CRITICAL --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:latest'
-				sh 'trivy --severity HIGH,CRITICAL --skip-update --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:latest'
+                sh 'trivy --severity HIGH,CRITICAL --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:latest'
+				// sh 'trivy --severity HIGH,CRITICAL --skip-update --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:latest'
             }
         }
 
