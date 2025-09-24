@@ -1,13 +1,20 @@
 pipeline {
-	agent any
+	agent {label "agent-2"}
 	tools {
-		nodejs 'node18'
+		nodejs 'NodeJS'
 	}
 	environment {
 		DOCKER_HUB_REPO = 'keanghor31/keanghor-app'
 		DOCKER_HUB_CREDENTIALS_ID = 'docker-hub-credentials'
 	}
 	stages {
+		stage('Test Node') {
+            steps {
+                sh 'node -v'
+                sh 'npm -v'
+            }
+        }
+		
 		stage('Checkout Github'){
 			steps {
 				git branch: 'main', credentialsId: 'GitOps-Token-GitHub', url: 'https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git'
