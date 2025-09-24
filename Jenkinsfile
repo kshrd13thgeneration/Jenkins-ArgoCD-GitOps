@@ -26,7 +26,7 @@ pipeline {
         stage('Checkout GitHub') {
             steps {
                 git branch: 'main',
-                    credentialsId: 'GitOps-Token-GitHub',
+                    credentialsId: 'github-jenkins-token',
                     url: 'https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git'
             }
         }
