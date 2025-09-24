@@ -57,7 +57,7 @@ pipeline {
             steps {
                 script {
                     echo "Pushing docker image ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} and latest tag to DockerHub..."
-                    docker.withRegistry('', "${DOCKER_HUB_CREDENTIALS_ID}") {
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_HUB_CREDENTIALS_ID}") {
                         dockerImage.push(env.IMAGE_TAG)
                         dockerImage.push('latest')
                     }
