@@ -22,13 +22,13 @@ pipeline {
             }
         }
 
-        stage('Checkout Github') {
+        stage('Checkout GitHub') {
             steps {
                 git branch: 'main', credentialsId: 'GitOps-Token-GitHub', url: 'https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git'
             }
         }
 
-        stage('Install node dependencies') {
+        stage('Install Node Dependencies') {
             steps {
                 sh 'npm install'
             }
@@ -48,11 +48,11 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 script {
-                    echo "🔍 Running Trivy scan..."
+                    echo "🔍 Running Trivy scan with Docker container..."
                     sh """
                         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \\
                             --severity HIGH,CRITICAL --no-progress --format table \\
-                            -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} || echo 'Trivy scan failed but continuing...'
+                            -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${IMAGE_TAG} || echo 'Trivy scan failed but continuing...'
                     """
                 }
             }
@@ -61,28 +61,25 @@ pipeline {
         stage('Push Image to DockerHub') {
             steps {
                 script {
-                    echo "🚀 Pushing Docker image: ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} and :latest"
+                    echo "🚀 Pushing Docker image: ${DOCKER_HUB_REPO}:${IMAGE_TAG} and :latest"
                     docker.withRegistry('', "${DOCKER_HUB_CREDENTIALS_ID}") {
-                        dockerImage.push("${env.IMAGE_TAG}")
-                        dockerImage.push('latest')
+                        dockerImage.push("${IMAGE_TAG}")
+                        dockerImage.push("latest")
                     }
                 }
             }
         }
 
-        stage('Update K8s Manifest') {
+        stage('Update Deployment Manifest') {
             steps {
                 script {
-                    def filePath = "manifests/deployment.yaml"
-                    echo "📝 Updating image tag in Kubernetes manifest..."
-
+                    echo "✏️ Updating deployment manifest with image tag: ${IMAGE_TAG}"
                     sh """
-                        sed -i 's|image: ${DOCKER_HUB_REPO}:.*|image: ${DOCKER_HUB_REPO}:${IMAGE_TAG}|' ${filePath}
-                        
-                        git config user.email "jenkins@keanghor.com"
+                        sed -i 's|image: ${DOCKER_HUB_REPO}:.*|image: ${DOCKER_HUB_REPO}:${IMAGE_TAG}|' manifests/deployment.yaml
+                        git config user.email "jenkins@local"
                         git config user.name "Jenkins CI"
-                        git add ${filePath}
-                        git commit -m "🤖 Update image tag to ${IMAGE_TAG}"
+                        git add manifests/deployment.yaml
+                        git commit -m "🔧 Update image tag to ${IMAGE_TAG}"
                         git push origin main
                     """
                 }
@@ -91,11 +88,15 @@ pipeline {
 
         stage('Login to ArgoCD & Sync App') {
             steps {
-                kubeconfig(credentialsId: 'gcp-k8s-service-account', serverUrl: "https://${env.ARGOCD_SERVER_IP}") {
+                kubeconfig(
+                    credentialsId: 'gcp-k8s-service-account',
+                    serverUrl: "https://${env.ARGOCD_SERVER_IP}",
+                    caCertificate: ''
+                ) {
                     script {
                         echo "🔐 Logging into ArgoCD and syncing app..."
                         sh """
-                            argocd login ${env.ARGOCD_SERVER_IP} --username admin --password \\
+                            argocd login ${ARGOCD_SERVER_IP} --username admin --password \\
                                 \$(kubectl get secret -n ${K8S_NAMESPACE} argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
                             
                             argocd app sync ${ARGOCD_APP_NAME}
