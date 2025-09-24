@@ -48,15 +48,6 @@ pipeline {
             steps {
                 // If trivy CLI is installed on your agent, use this:
                 sh "trivy image --severity HIGH,CRITICAL --no-progress --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}"
-
-                // OR uncomment below to run Trivy via Docker container (if CLI missing)
-                /*
-                sh """
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
-                    --severity HIGH,CRITICAL --no-progress --format table \
-                    -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}
-                """
-                */
             }
         }
 
