@@ -1,7 +1,7 @@
 pipeline {
 	agent any
 	tools {
-		nodejs 'NodeJS'
+		nodejs 'node18'
 	}
 	environment {
 		DOCKER_HUB_REPO = 'keanghor31/keanghor-app'
