@@ -10,8 +10,8 @@ pipeline {
     IMAGE_FILE                = 'manifests/deployment.yaml'   // file to update
     GIT_BRANCH                = 'main'
     GIT_URL                   = 'https://github.com/kshrd13thgeneration/Jenkins-ArgoCD-GitOps.git'
-    GIT_USER_NAME             = 'jenkins-bot'
-    GIT_USER_EMAIL            = 'jenkins-bot@local'
+    GIT_USER_NAME             = 'kshrd13thgeneration'
+    GIT_USER_EMAIL            = 'hengenghour5@gmail.com'
   }
 
   stages {
