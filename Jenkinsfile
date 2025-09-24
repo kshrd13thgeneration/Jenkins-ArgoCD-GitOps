@@ -41,16 +41,16 @@ pipeline {
 			}
 		}
 		// Trivy scan stage here if needed
-		// stage('Push Image to DockerHub'){
-		// 	steps {
-		// 		script {
-		// 			echo "Pushing docker image ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} to DockerHub..."
-		// 			docker.withRegistry('https://registry.hub.docker.com', "${DOCKER_HUB_CREDENTIALS_ID}"){
-		// 				dockerImage.push(env.IMAGE_TAG)
-		// 			}
-		// 		}
-		// 	}
-		// }
+		stage('Push Image to DockerHub'){
+			steps {
+				script {
+					echo "Pushing docker image ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} to DockerHub..."
+					docker.withRegistry('https://registry.hub.docker.com', "${DOCKER_HUB_CREDENTIALS_ID}"){
+						dockerImage.push(env.IMAGE_TAG)
+					}
+				}
+			}
+		}
 		// stage('Apply Kubernetes Manifests & Sync App with ArgoCD'){
 		// 	steps {
 		// 		script {
