@@ -34,30 +34,24 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Use Jenkins build number for patch version (e.g. 1.0.8)
                     def imageTag = "${BASE_VERSION}.${env.BUILD_NUMBER}"
                     echo "Building docker image with tag: ${imageTag}"
 
                     dockerImage = docker.build("${DOCKER_HUB_REPO}:${imageTag}")
 
-                    // Save the tag to an env variable for later use
                     env.IMAGE_TAG = imageTag
                 }
             }
         }
 
-        // Optional Trivy scan stage
         stage('Trivy Scan') {
             steps {
+                // Run trivy as a Docker container scanning the built image locally
                 sh """
-                   /usr/bin/trivy --severity HIGH,CRITICAL --skip-update --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
+                    --severity HIGH,CRITICAL --no-progress --format table \
+                    -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}
                 """
-            }
-            // Optional: archive the scan report so you can view it in Jenkins UI
-            post {
-                always {
-                    archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
-                }
             }
         }
 
@@ -66,34 +60,38 @@ pipeline {
                 script {
                     echo "Pushing docker image ${DOCKER_HUB_REPO}:${env.IMAGE_TAG} and latest to DockerHub..."
                     docker.withRegistry('', "${DOCKER_HUB_CREDENTIALS_ID}") {
-                        dockerImage.push(env.IMAGE_TAG)   // push version tag
-                        dockerImage.push('latest')        // push latest tag
+                        dockerImage.push(env.IMAGE_TAG)
+                        dockerImage.push('latest')
                     }
                 }
             }
         }
 
-
-        // stage('Apply Kubernetes Manifests & Sync App with ArgoCD') {
-        //     steps {
-        //         script {
-        //             kubeconfig(credentialsId: 'kubeconfig', serverUrl: '34.87.128.146:8080') {
-        //                 sh '''
-        //                     argocd login 104.154.141.175 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
-        //                     argocd app sync argocdjenkins
-        //                 '''
-        //             }
-        //         }
-        //     }
-        // }
+        // Optional Kubernetes/ArgoCD stage here if needed
+        /*
+        stage('Apply Kubernetes Manifests & Sync App with ArgoCD') {
+            steps {
+                script {
+                    kubeconfig(credentialsId: 'kubeconfig', serverUrl: '34.87.128.146:8080') {
+                        sh '''
+                            argocd login 104.154.141.175 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
+                            argocd app sync argocdjenkins
+                        '''
+                    }
+                }
+            }
+        }
+        */
     }
 
     post {
         success {
             echo 'Build & Deploy completed successfully!'
+            archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
         }
         failure {
             echo 'Build & Deploy failed. Check logs.'
+            archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
         }
     }
 }
