@@ -49,14 +49,15 @@ pipeline {
         // Optional Trivy scan stage
         stage('Trivy Scan') {
             steps {
-                script {
-                    echo "Running Trivy vulnerability scan on image: ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}"
-                    sh """
-                        trivy --severity HIGH,CRITICAL --skip-update --no-progress image \
-                        --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}
-                    """
+                sh """
+                   /usr/bin/trivy --severity HIGH,CRITICAL --skip-update --no-progress image --format table -o trivy-scan-report.txt ${DOCKER_HUB_REPO}:${env.IMAGE_TAG}
+                """
+            }
+            // Optional: archive the scan report so you can view it in Jenkins UI
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
                 }
-                archiveArtifacts artifacts: 'trivy-scan-report.txt', allowEmptyArchive: true
             }
         }
 
