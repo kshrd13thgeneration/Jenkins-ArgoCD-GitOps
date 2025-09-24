@@ -76,8 +76,8 @@ pipeline {
                     echo "✏️ Updating deployment manifest with image tag: ${IMAGE_TAG}"
                     sh """
                         sed -i 's|image: ${DOCKER_HUB_REPO}:.*|image: ${DOCKER_HUB_REPO}:${IMAGE_TAG}|' manifests/deployment.yaml
-                        git config user.email "jenkins@local"
-                        git config user.name "Jenkins CI"
+                        git config user.email "hengenghour5@gmail.com"
+                        git config user.name "kshrd13thgeneration"
                         git add manifests/deployment.yaml
                         git commit -m "🔧 Update image tag to ${IMAGE_TAG}"
                         git push origin main
