@@ -8,10 +8,10 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'keanghor31/keanghor-app'
         DOCKER_HUB_CREDENTIALS_ID = 'docker-hub-credentials'
-        BASE_VERSION = '1.0'  // Base version for tagging
-        K8S_NAMESPACE = 'argocd' // namespace where argocd is installed
-        ARGOCD_APP_NAME = 'argocdjenkins' // your argocd app name
-        ARGOCD_SERVER_IP = '104.154.141.175' // fixed ArgoCD LoadBalancer IP
+        BASE_VERSION = '1.0'
+        K8S_NAMESPACE = 'argocd'
+        ARGOCD_APP_NAME = 'argocdjenkins'
+        ARGOCD_SERVER_IP = '104.154.141.175'
     }
 
     stages {
@@ -48,7 +48,7 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 script {
-                    echo "🔍 Running Trivy scan with Docker container..."
+                    echo "🔍 Running Trivy scan..."
                     sh """
                         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \\
                             --severity HIGH,CRITICAL --no-progress --format table \\
@@ -70,14 +70,35 @@ pipeline {
             }
         }
 
+        stage('Update K8s Manifest') {
+            steps {
+                script {
+                    def filePath = "manifests/deployment.yaml"
+                    echo "📝 Updating image tag in Kubernetes manifest..."
+
+                    sh """
+                        sed -i 's|image: ${DOCKER_HUB_REPO}:.*|image: ${DOCKER_HUB_REPO}:${IMAGE_TAG}|' ${filePath}
+                        
+                        git config user.email "jenkins@keanghor.com"
+                        git config user.name "Jenkins CI"
+                        git add ${filePath}
+                        git commit -m "🤖 Update image tag to ${IMAGE_TAG}"
+                        git push origin main
+                    """
+                }
+            }
+        }
+
         stage('Login to ArgoCD & Sync App') {
             steps {
                 kubeconfig(credentialsId: 'gcp-k8s-service-account', serverUrl: "https://${env.ARGOCD_SERVER_IP}") {
                     script {
                         echo "🔐 Logging into ArgoCD and syncing app..."
                         sh """
-                        argocd login ${env.ARGOCD_SERVER_IP} --username admin --password \$(kubectl get secret -n ${K8S_NAMESPACE} argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
-                        argocd app sync ${ARGOCD_APP_NAME}
+                            argocd login ${env.ARGOCD_SERVER_IP} --username admin --password \\
+                                \$(kubectl get secret -n ${K8S_NAMESPACE} argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
+                            
+                            argocd app sync ${ARGOCD_APP_NAME}
                         """
                     }
                 }
